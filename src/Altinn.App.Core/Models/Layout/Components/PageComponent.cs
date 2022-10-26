@@ -15,8 +15,8 @@ public class PageComponent : GroupComponent
     /// <summary>
     /// Constructor for PageComponent
     /// </summary>
-    public PageComponent(string id, List<BaseComponent> children, Dictionary<string, BaseComponent> componentLookup, Expression? hidden, Expression? required, Expression? readOnly, IReadOnlyDictionary<string, string>? extra) :
-        base(id, "page", null, children, hidden, required, readOnly, extra)
+    public PageComponent(BaseComponent baseComponent, List<BaseComponent> children, Dictionary<string, BaseComponent> componentLookup) :
+        base(baseComponent, children)
     {
         ComponentLookup = componentLookup;
     }

@@ -29,6 +29,20 @@ public class BaseComponent
         ReadOnly = readOnly;
         AdditionalDebugProperties = additionalProperties;
     }
+
+    /// <summary>
+    /// CopyConstructor to reduce the list of arguments in subclasses
+    /// </summary>
+    public BaseComponent(BaseComponent c)
+    {
+        Id = c.Id;
+        Type = c.Type;
+        DataModelBindings = c.DataModelBindings;
+        Hidden = c.Hidden;
+        Required = c.Required;
+        AdditionalDebugProperties = c.AdditionalDebugProperties;
+    }
+
     /// <summary>
     /// ID of the component (or pagename for pages)
     /// </summary>

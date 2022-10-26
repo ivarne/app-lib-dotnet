@@ -137,7 +137,8 @@ public class PageComponentConverter : JsonConverter<PageComponent>
             }
         }
 
-        return new PageComponent(pageName, components, componentLookup, hidden, required, readOnly, extra);
+        var baseComponent = new BaseComponent(id: pageName, "page", null, hidden, required, readOnly, extra);
+        return new PageComponent(baseComponent, components, componentLookup);
     }
 
     private void ReadLayout(ref Utf8JsonReader reader, List<BaseComponent> components, Dictionary<string, BaseComponent> componentLookup, JsonSerializerOptions options)
@@ -278,6 +279,7 @@ public class PageComponentConverter : JsonConverter<PageComponent>
             throw new JsonException("\"type\" property of component should not be null");
         }
 
+        var baseComponent = new BaseComponent(id, type, dataModelBindings, hidden, required, readOnly, additionalProperties);
         switch (type.ToLowerInvariant())
         {
             case "group":
@@ -293,11 +295,11 @@ public class PageComponentConverter : JsonConverter<PageComponent>
                         throw new JsonException($"A group id:\"{id}\" with maxCount: {maxCount} does not have a \"group\" dataModelBinding");
                     }
 
-                    return new RepeatingGroupComponent(id, type, dataModelBindings, children, maxCount, hidden, required, readOnly, additionalProperties);
+                    return new RepeatingGroupComponent(baseComponent, children, maxCount);
                 }
                 else
                 {
-                    return new GroupComponent(id, type, dataModelBindings, children, hidden, required, readOnly, additionalProperties);
+                    return new GroupComponent(baseComponent, children);
                 }
             case "summary":
                 if (componentRef is null || pageRef is null)
@@ -305,7 +307,7 @@ public class PageComponentConverter : JsonConverter<PageComponent>
                     throw new JsonException("Component with \"type\": \"Summary\" requires \"componentRef\" and \"pageRef\" properties");
                 }
 
-                return new SummaryComponent(id, type, hidden, componentRef, pageRef, additionalProperties);
+                return new SummaryComponent(baseComponent, componentRef, pageRef);
             case "checkboxes":
             case "radiobuttons":
             case "dropdown":
@@ -322,11 +324,11 @@ public class PageComponentConverter : JsonConverter<PageComponent>
                     throw new JsonException("\"secure\": true is invalid for components with literal \"options\"");
                 }
 
-                return new OptionsComponent(id, type, dataModelBindings, hidden, required, readOnly, optionId, literalOptions, secure, additionalProperties);
+                return new OptionsComponent(baseComponent, optionId, literalOptions, secure);
         }
 
         // Most compoents are handled as BaseComponent
-        return new BaseComponent(id, type, dataModelBindings, hidden, required, readOnly, additionalProperties);
+        return baseComponent;
     }
 
     private List<BaseComponent> ReadChildren(ref Utf8JsonReader reader, string parentId, List<string> childIds, JsonSerializerOptions options)
