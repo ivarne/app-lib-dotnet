@@ -14,6 +14,7 @@ using Altinn.App.Core.Constants;
 using Altinn.App.Core.Extensions;
 using Altinn.App.Core.Features;
 using Altinn.App.Core.Helpers;
+using Altinn.App.Core.Helpers.DataModel;
 using Altinn.App.Core.Helpers.Serialization;
 using Altinn.App.Core.Interface;
 using Altinn.App.Core.Internal.AppModel;
@@ -830,8 +831,7 @@ namespace Altinn.App.Api.Controllers
 
         private async Task StorePrefillParts(Instance instance, Application appInfo, List<RequestPart> parts)
         {
-            Guid instanceGuid = Guid.Parse(instance.Id.Split("/")[1]);
-            int instanceOwnerIdAsInt = int.Parse(instance.InstanceOwner.PartyId);
+            var instanceId = new InstanceIdentifier(instance);
             string org = instance.Org;
             string app = instance.AppId.Split("/")[1];
 
@@ -863,16 +863,16 @@ namespace Altinn.App.Api.Controllers
                     }
 
                     await _prefillService.PrefillDataModel(instance.InstanceOwner.PartyId, part.Name, data);
-                    
                     await _instantiationProcessor.DataCreation(instance, data, null);
+                    await UpdatePresentationTexts(appInfo, instanceId, dataType, data);
 
                     dataElement = await _dataClient.InsertFormData(
                         data,
-                        instanceGuid,
+                        instanceId.InstanceGuid,
                         type,
                         org,
                         app,
-                        instanceOwnerIdAsInt,
+                        instanceId.InstanceOwnerPartyId,
                         part.Name);
                 }
                 else
@@ -884,6 +884,33 @@ namespace Altinn.App.Api.Controllers
                 {
                     throw new ServiceException(HttpStatusCode.InternalServerError, $"Data service did not return a valid instance metadata when attempt to store data element {part.Name}");
                 }
+            }
+        }
+
+        private async Task UpdatePresentationTexts(Application appInfo, InstanceIdentifier instanceId, DataType dataType, object data)
+        {
+            if (appInfo.PresentationFields?.Count > 0 && data is not null)
+            {
+                var modelAccessor = new DataModel(data);
+                var presentationTexts = new PresentationTexts() { Texts = new() };
+                foreach (var dataField in appInfo.PresentationFields.Where(df => df.DataTypeId == dataType.Id))
+                {
+                    var value = modelAccessor.GetModelData(dataField.Path) switch
+                    {
+                        string s => s,
+                        // DataHelper uses ToString, so I do the same here. It is wrong for objects, and inconsistent for numbers(, vs .) and dates.
+                        // https://github.com/Altinn/app-lib-dotnet/blob/324aae7e44d67d54f4a931e8d3ab0df5aa2968dc/src/Altinn.App.Core/Helpers/DataHelper.cs#L154
+                        // TODO: handle numbers, dates, ... in a consistent way
+                        object o => o.ToString(),
+                        _ => null,
+                    };
+
+                    if (value is not null)
+                    {
+                        presentationTexts.Texts[dataField.Id] = value;
+                    }
+                }
+                await _instanceClient.UpdatePresentationTexts(instanceId.InstanceOwnerPartyId, instanceId.InstanceGuid, presentationTexts);
             }
         }
 
