@@ -39,7 +39,15 @@ namespace Altinn.App.Core.Internal.Pdf
         /// <param name="profileClient">The profile client</param>
         /// <param name="registerClient">The register client</param>
         /// <param name="pdfFormatter">Class for customizing pdf formatting and layout.</param>
-        public PdfService(IPDF pdfClient, IAppResources appResources, IPdfOptionsMapping pdfOptionsMapping, IData dataClient, IHttpContextAccessor httpContextAccessor, IProfile profileClient, IRegister registerClient, IPdfFormatter pdfFormatter)
+        public PdfService(
+            IPDF pdfClient,
+            IAppResources appResources,
+            IPdfOptionsMapping pdfOptionsMapping,
+            IData dataClient,
+            IHttpContextAccessor httpContextAccessor,
+            IProfile profileClient,
+            IRegister registerClient,
+            IPdfFormatter pdfFormatter)
         {
             _pdfClient = pdfClient;
             _resourceService = appResources;
@@ -59,22 +67,9 @@ namespace Altinn.App.Core.Internal.Pdf
             int instanceOwnerId = int.Parse(instance.InstanceOwner.PartyId);
             Guid instanceGuid = Guid.Parse(instance.Id.Split("/")[1]);
 
-            string layoutSetsString = _resourceService.GetLayoutSets();
-            LayoutSets? layoutSets = null;
-            LayoutSet? layoutSet = null;
-            if (!string.IsNullOrEmpty(layoutSetsString))
-            {
-                layoutSets = JsonConvert.DeserializeObject<LayoutSets>(layoutSetsString)!;
-                layoutSet = layoutSets.Sets?.FirstOrDefault(t => t.DataType.Equals(dataElement.DataType) && t.Tasks.Contains(taskId));
-            }
-
-            string? layoutSettingsFileContent = layoutSet == null ? _resourceService.GetLayoutSettingsString() : _resourceService.GetLayoutSettingsStringForSet(layoutSet.Id);
-
-            LayoutSettings? layoutSettings = null;
-            if (!string.IsNullOrEmpty(layoutSettingsFileContent))
-            {
-                layoutSettings = JsonConvert.DeserializeObject<LayoutSettings>(layoutSettingsFileContent);
-            }
+            LayoutSets? layoutSets = _resourceService.GetLayoutSet();
+            LayoutSet? layoutSet = layoutSets?.Sets?.FirstOrDefault(t => t.DataType.Equals(dataElement.DataType) && t.Tasks.Contains(taskId));
+            LayoutSettings? layoutSettings = _resourceService.GetLayoutSettingsForSet(layoutSet?.Id);
 
             // Ensure layoutsettings are initialized in FormatPdf
             layoutSettings ??= new();
@@ -83,10 +78,11 @@ namespace Altinn.App.Core.Internal.Pdf
             layoutSettings.Pages.ExcludeFromPdf ??= new();
             layoutSettings.Components ??= new();
             layoutSettings.Components.ExcludeFromPdf ??= new();
-
             object data = await _dataClient.GetFormData(instanceGuid, dataElementModelType, org, app, instanceOwnerId, new Guid(dataElement.Id));
 
-            layoutSettings = await _pdfFormatter.FormatPdf(layoutSettings, data);
+             _pdfFormatter.SetInstance(instance);
+             layoutSettings = await _pdfFormatter.FormatPdf(layoutSettings, data);
+
             XmlSerializer serializer = new XmlSerializer(dataElementModelType);
             using MemoryStream stream = new MemoryStream();
 

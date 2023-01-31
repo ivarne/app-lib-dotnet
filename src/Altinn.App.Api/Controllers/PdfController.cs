@@ -1,6 +1,6 @@
+#nullable enable
 using System;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Altinn.App.Core.Features;
 using Altinn.App.Core.Interface;
@@ -66,39 +66,26 @@ namespace Altinn.App.Api.Controllers
                 return NotFound("Did not find instance");
             }
 
-            string taskId = instance.Process?.CurrentTask?.ElementId;
+            string? taskId = instance.Process?.CurrentTask?.ElementId;
             if (taskId == null)
             {
                 return Conflict("Instance does not have a valid currentTask");
             }
 
-            DataElement dataElement = instance.Data.FirstOrDefault(d => d.Id == dataGuid.ToString());
+            DataElement? dataElement = instance.Data.FirstOrDefault(d => d.Id == dataGuid.ToString());
             if (dataElement == null)
             {
                 return NotFound("Did not find data element");
             }
 
+            LayoutSets? layoutSets = _resources.GetLayoutSet();
+            LayoutSet? layoutSet = layoutSets?.Sets?.FirstOrDefault(t => t.DataType.Equals(dataElement.DataType) && t.Tasks.Contains(taskId));
+            LayoutSettings? layoutSettings = _resources.GetLayoutSettingsForSet(layoutSet?.Id);
+            ArgumentNullException.ThrowIfNull(layoutSettings, "Settings.json");
+
             string appModelclassRef = _resources.GetClassRefForLogicDataType(dataElement.DataType);
             Type dataType = _appModel.GetModelType(appModelclassRef);
-
-            JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
-            string layoutSetsString = _resources.GetLayoutSets();
-            LayoutSets layoutSets = null;
-            LayoutSet layoutSet = null;
-            if (!string.IsNullOrEmpty(layoutSetsString))
-            {
-                layoutSets = JsonSerializer.Deserialize<LayoutSets>(layoutSetsString, options);
-                layoutSet = layoutSets.Sets?.FirstOrDefault(t => t.DataType.Equals(dataElement.DataType) && t.Tasks.Contains(taskId));
-            }
-
-            string layoutSettingsFileContent = layoutSet == null ? _resources.GetLayoutSettingsString() : _resources.GetLayoutSettingsStringForSet(layoutSet.Id);
-
-            LayoutSettings layoutSettings = null;
-            if (!string.IsNullOrEmpty(layoutSettingsFileContent))
-            {
-                layoutSettings = JsonSerializer.Deserialize<LayoutSettings>(layoutSettingsFileContent, options);
-            }
+            object data = await _dataClient.GetFormData(instanceGuid, dataType, org, app, instanceOwnerPartyId, new Guid(dataElement.Id));
 
             // Ensure layoutsettings are initialized in FormatPdf
             layoutSettings ??= new();
@@ -107,15 +94,15 @@ namespace Altinn.App.Api.Controllers
             layoutSettings.Components ??= new();
             layoutSettings.Components.ExcludeFromPdf ??= new();
 
-            object data = await _dataClient.GetFormData(instanceGuid, dataType, org, app, instanceOwnerPartyId, new Guid(dataElement.Id));
-
+            _pdfFormatter.SetInstance(instance);
             layoutSettings = await _pdfFormatter.FormatPdf(layoutSettings, data);
 
             var result = new
             {
-                ExcludedPages = layoutSettings.Pages.ExcludeFromPdf,
-                ExcludedComponents = layoutSettings.Components.ExcludeFromPdf,
+                ExcludedPages = layoutSettings?.Pages?.ExcludeFromPdf,
+                ExcludedComponents = layoutSettings?.Components?.ExcludeFromPdf,
             };
+
             return Ok(result);
         }
     }
