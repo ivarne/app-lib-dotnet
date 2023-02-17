@@ -1,3 +1,4 @@
+using System.Text;
 using Altinn.App.Core.Configuration;
 using Altinn.App.Core.Features;
 using Altinn.App.Core.Features.DataLists;
@@ -52,12 +53,13 @@ namespace Altinn.App.Core.Extensions
         /// <param name="env">A reference to the current <see cref="IWebHostEnvironment"/> object.</param>
         public static void AddPlatformServices(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment env)
         {
+            var appId = AddApplicationIdentifier(services);
+            ReplaceAppOrgInConfig(configuration, appId);
+
             services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
             services.Configure<GeneralSettings>(configuration.GetSection("GeneralSettings"));
             services.Configure<PlatformSettings>(configuration.GetSection("PlatformSettings"));
             services.Configure<CacheSettings>(configuration.GetSection("CacheSettings"));
-
-            AddApplicationIdentifier(services);
 
             services.AddHttpClient<IApplication, ApplicationClient>();
             services.AddHttpClient<IAuthentication, AuthenticationClient>();
@@ -82,13 +84,25 @@ namespace Altinn.App.Core.Extensions
             services.TryAddTransient<IApplicationLanguage, Internal.Language.ApplicationLanguage>();
         }
 
-        private static void AddApplicationIdentifier(IServiceCollection services)
+        private static void ReplaceAppOrgInConfig(IConfiguration config, AppIdentifier appId)
         {
-            services.AddSingleton<AppIdentifier>(sp =>
+            foreach(var (key, value) in config.AsEnumerable().ToArray())
             {
-                var appIdentifier = GetApplicationId();
-                return new AppIdentifier(appIdentifier);
-            });
+                if(value is not null && (value.Contains("{app}") || value.Contains("{org}")))
+                {
+                    var newValue = new StringBuilder(value);
+                    newValue.Replace("{app}", appId.App);
+                    newValue.Replace("{org}", appId.Org);
+                    config[key] = newValue.ToString();
+                }
+            }
+        }
+
+        private static AppIdentifier AddApplicationIdentifier(IServiceCollection services)
+        {
+            var appIdentifier = new AppIdentifier(GetApplicationId());
+            services.AddSingleton<AppIdentifier>(appIdentifier);
+            return appIdentifier;
         }
 
         private static string GetApplicationId()
