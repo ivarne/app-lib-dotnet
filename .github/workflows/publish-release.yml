@@ -51,7 +51,12 @@ jobs:
 
       - name: Versions
         run: |
-          dotnet --version
+          dotnet --version      
+      - name: Upload package as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: packed-nuget
+          path: src/**/bin/Release/*.nupkg
 
       - name: Publish
         run: |
