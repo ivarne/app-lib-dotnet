@@ -30,18 +30,29 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
+
       - name: Install deps
         run: |
           dotnet restore
+
       - name: Build
         run: |
           dotnet build --configuration Release --no-restore -p:Deterministic=true -p:BuildNumber=${{ github.run_number }}
+
+      - name: Extract release notes
+        id: extract-notes
+        run: echo "${{ github.event.release.body }}" > RELEASE_NOTES.md
+
       - name: Pack
         run: |
-          dotnet pack AppLibDotnet.sln --configuration Release --no-restore --no-build -p:Deterministic=true -p:BuildNumber=${{ github.run_number }}
+          dotnet pack AppLibDotnet.sln --configuration Release --no-restore --no-build \
+            -p:Deterministic=true -p:BuildNumber=${{ github.run_number }} \
+            -p:PackageReleaseNotes="$(cat RELEASE_NOTES.md)"
+
       - name: Versions
         run: |
           dotnet --version
+
       - name: Publish
         run: |
           dotnet nuget push src/**/bin/Release/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
