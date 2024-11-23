@@ -47,9 +47,11 @@ jobs:
         run: |
           dotnet pack AppLibDotnet.sln --configuration Release --no-restore --no-build \
             -p:Deterministic=true -p:BuildNumber=${{ github.run_number }}
-      - name: Versions
-        run: |
-          dotnet --version
+      - name: Upload package as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: packed-nuget
+          path: src/**/bin/Release/*.nupkg
       - name: Publish
         run: |
           dotnet nuget push src/**/bin/Release/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
